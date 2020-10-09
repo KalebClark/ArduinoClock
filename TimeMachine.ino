@@ -75,8 +75,8 @@ timeSlots ts[tsCount] = {
   {6, false},   // (DEFAULT) Top TFT display 
   {2, true},    // Middle TFT Display
   {3, false},   // Bottom TFT Display
-  {1, false},   // Top LCD Display
-  {1, false}    // Bottom LCD Display
+  {6, false},   // Top LCD Display
+  {2, false}    // Bottom LCD Display
 };
 
 // You can set timezone defaults here.
@@ -99,25 +99,23 @@ NTPClient timeClient(ntpUDP);
 //Adafruit_MCP23017 mcp2;
 //TmSSD ssds;
 
-// NEW SSD Objects
-DigitLedDisplay ld = DigitLedDisplay(11, 6, 13);
+// NEW SSD Objects                  (DIN, CS, CLK)
+DigitLedDisplay ld = DigitLedDisplay(2,3,4);
 
 // TFT Objects
 #define TFT_CS 8
 #define TFT_DC 7
 #define TFT_RST 8 // RST can be set to -1 if you tie it to Arduino's reset
-#define MISO 3
-#define MOSI 4
-#define SCK 2
-//Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, TFT_RST);
-Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST, MISO);
-
+//#define MISO 3
+//#define MOSI 4
+//#define SCK 2
+Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, TFT_RST);                 // HW
+//Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST, MISO);  // SW
 
 GFXcanvas1 dateCanvas(480, 35);
 
 // Encoder Object
 SimpleRotary enc(A0, A1, A2);
-
 
 // Function prototypes
 time_t syncNTPTime();
@@ -128,7 +126,10 @@ char ssid[] = SECRET_SSID; char pass[] = SECRET_PASS;
 // Globals
 int loop_interval = 1000;
 unsigned long main_prev_millis = 0;
-int ssd_time_top, ssd_time_btm;   // Seven Segment Display values
+unsigned long dots_prev_millis = 0;
+int dots_state = LOW;
+//int ssd_time_top, ssd_time_btm;   // Seven Segment Display values
+char ssd_top[12]; char ssd_btm[12];
 char tft_time_top[10], tft_time_btm[10];
 int selected_clock = 0;           // For main selection
 int menu_selection = 0;           // For menu selection
@@ -211,6 +212,8 @@ void setup() {
   // NEW Seven Segment Display Setup
   ld.setBright(10);
   ld.setDigitLimit(8);
+  pinMode(5, OUTPUT); // Top LCD Dots
+  pinMode(6, OUTPUT); // Bottom LCD Dots
 
   // TFT Setup
   tft.begin();
@@ -224,6 +227,21 @@ int t1[3];
 void loop() {
   // Main Timer
   unsigned long main_current_millis = millis();
+  // Blink LCD Dots
+  if(main_current_millis - dots_prev_millis >= 500) {
+    dots_prev_millis = main_current_millis;
+
+    if(dots_state == LOW) {
+      dots_state = HIGH;
+    } else {
+      dots_state = LOW;
+    }
+    digitalWrite(5, dots_state);
+    digitalWrite(6, dots_state);
+  }
+  
+
+  // Main Loop
   if(main_current_millis - main_prev_millis >= loop_interval) {
     main_prev_millis = main_current_millis;
 
@@ -240,7 +258,8 @@ void loop() {
       displayTFTTime(ts[0].tz_index, 0, tft_top);
       displayTFTTime(ts[1].tz_index, 1, tft_mdl);
       displayTFTTime(ts[2].tz_index, 2, tft_btm);
-      ld.printDigit(12345678);
+      //ld.printDigit(12345678);
+      showLCDTime();
       
 
 //      displayTFTTime(0, 0, tft_top);
@@ -401,6 +420,57 @@ void displayMenu() {
   tft.setCursor(300, 310);
   tft.setTextColor(HX8357_WHITE);
   tft.println("Set and Exit");
+}
+
+void showLCDTime() {
+//  int lcd_top = getLCDTime(5, 3);
+//  int lcd_btm = getLCDTime(2, 4);
+  char output[20];
+  getLCDTime(ts[3].tz_index, 3, ssd_top);
+  getLCDTime(ts[4].tz_index, 4, ssd_btm);
+  strcpy(output, ssd_btm);
+  strcat(output, ssd_top);
+
+  Serial.print("SSDTOP: "); Serial.println(ssd_top);
+  Serial.print("SSDBTM: "); Serial.println(ssd_btm);
+  Serial.print("Output: "); Serial.println(output);
+  ld.printDigit(atol(output));
+}
+
+char* getLCDTime(int tz_index, int pos, char *time_slot) {
+  int t_hour, t_min, t_sec;
+//  char output[12];
+  TimeChangeRule *tcr;
+  Timezone tz = tzs[tz_index].tz;
+  time_t utc = now();
+  time_t t = tz.toLocal(utc, &tcr);
+
+  // Check hour24 time
+  if(ts[pos].hour24) {
+    t_hour = hour(t);
+  } else {
+    t_hour = hourFormat12(t); 
+  }
+  
+  t_min = minute(t); t_sec = second(t);
+
+  sprintf(time_slot, "%.2d%.2d", t_hour, t_min);
+
+//  Serial.print("F_out: "); Serial.println(time_slot);
+//  Serial.print("R_out: "); Serial.println(reverseNum(time_slot));
+  return reverseNum(time_slot);
+//  return reverseNum(output);
+}
+
+char* reverseNum(char *str) {
+  size_t len = strlen(str);
+  size_t i = 0;
+  while(len > i) {
+    char tmp = str[--len];
+    str[len] = str[i];
+    str[i++] = tmp;
+  }
+  return str;
 }
 
 /*
