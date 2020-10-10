@@ -4,6 +4,7 @@
  * Playlist: Social Distortion, NoFX, Red Hot Chili Peppers, No Doubt, Megadeth
  *           Descendents
  */
+ 
 // Wifi Includes
 #include <WiFiNINA.h>
 #include <WiFiUdp.h>
@@ -14,6 +15,7 @@
 #include <TimeLib.h>
 #include <Timezone.h>
 #include "timeRules.h"
+#include "tz_config.h"
 
 // Includes for NEW Seven Segment Displays
 #include "DigitLedDisplay.h"
@@ -29,72 +31,11 @@
 // Encoder Includes
 #include <SimpleRotary.h>
 
+// Misc Includes
+#include "menus.h"
+
 // User Config Variables
 const int sync_time = 120;     // Time in seconds to Sync NTP Time
-
-/*
- * This can get a little confusing since I tried my hardest to make this
- * as region agnostic as possible. There are MANY timezones and rules 
- * that go with them, too many to list on this display without a ton more
- * code, so I went with 24 configured timezones. One for UTC and one for 
- * each offset. Each is configured as Standard time & Daylight Savings. 
- * 
- * The naming convention is (p/n)[offset](STD/DST). An example for 
- * offset of -04:00 with Standard time and Daylight Savings time
- * respectivley would be 'n4STD' and 'n4DST'.
- * 
- * Using the DST variant will automatically change Daylight Savings
- * on the correct day, and back to STD
- * 
- * Using the STD variant will NOT use Daylight Savings Time.
- * 
- * These are all listed in timeRules.h. 
- * 
- * In the array below, you can customize the names for these to fit
- * your specific region or taste. 
- */
-#define tzCount 25
-timeZones tzs[tzCount] = {
-  {p12STD, "Auckland"},
-  {p11STD, "Magadan"},    // LOCAL TIMEZONE
-  {p10STD, "Sydney"},   // UTC  0
-  {p9STD, "Tokyo"},    // UTC -5
-  {p8STD, "Perth"},    // UTC -6
-  {p7STD, "Bangkok"},   // UTC -7
-  {p6STD, "Ornsk"},    // UTC -7 (no DST)
-  {p5STD, "Karachi"},     // UTC -8
-  {p4STD, "Dubai"},
-  {p3DST, "Moscow"},
-  {p2DST, "Cairo"},
-  {p1DST, "Berlin"},
-  {UTC, "London"},
-  {n1DST, "Azores Is"},
-  {n2DST, "Sandwich Is"},
-  {n3DST, "Buenos Aires"},
-  {n4DST, "St Johns"},
-  {n5DST, "Eastern"},
-  {n6DST, "Central"},
-  {n7DST, "Mountain"},
-  {n8DST, "Pacific"},
-  {n9DST, "Anchorage"},
-  {n10DST, "Honolulu"},
-  {n11DST, "Niue"},
-  {n12DST, "Baker Is"}
-};
-
-struct timeSlots {
-  int tz_index;
-  bool hour24;
-};
-
-#define tsCount 5
-timeSlots ts[tsCount] = {
-  {19, false},   // (DEFAULT) Top TFT display 
-  {2, false},    // Middle TFT Display
-  {3, false},   // Bottom TFT Display
-  {6, false},   // Top LCD Display
-  {2, false}    // Bottom LCD Display
-};
 
 // Wifi Objects
 WiFiUDP ntpUDP;
@@ -110,8 +51,6 @@ DigitLedDisplay ld = DigitLedDisplay(2,3,4);
 #define TFT_DC 7
 #define TFT_RST 8 // RST can be set to -1 if you tie it to Arduino's reset
 Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, TFT_RST);                 // HW
-
-GFXcanvas1 dateCanvas(480, 35);
 
 // Encoder Object
 SimpleRotary enc(A0, A1, A2);
@@ -142,45 +81,6 @@ int tft_mdl[3] = {0,0,0};
 int tft_btm[3] = {0,0,0};
 
 bool in_menu = false;
-
-int main_cursor[5][2] = {
-  {5, 60},
-  {5, 130},
-  {5, 200},
-  {470, 150},
-  {470, 250}
-};
-
-int menu_cursor[28][2] = {
-  {5, 75},
-  {5, 100},
-  {5, 125},
-  {5, 150},
-  {5, 175},
-  {5, 200},
-  {5, 225},
-  {5, 250},
-  {5, 275},
-  {5, 300},
-  {155, 75},
-  {155, 100},
-  {155, 125},
-  {155, 150},
-  {155, 175},
-  {155, 200},
-  {155, 225},
-  {155, 250},
-  {155, 275},
-  {155, 300},
-  {285, 75},
-  {285, 100},
-  {285, 125},
-  {285, 150},
-  {285, 175},
-  {285, 260},
-  {285, 285},
-  {285, 310}
-};
 
 /* SETUP                                                               SETUP
  * ========================================================================= */
@@ -606,7 +506,7 @@ void displayTFTDate(int tz_index) {
 
   tft.setTextColor(HX8357_WHITE);
   tft.getTextBounds(buf, 0, 35, &x1, &y1, &w, &h);
-  cntr_x = (480 - w) / 2;
+   cntr_x = (480 - w) / 2;
   tft.setCursor(0, +h);
   
   tft.println(buf);
