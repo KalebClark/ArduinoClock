@@ -15,11 +15,6 @@
 #include <Timezone.h>
 #include "timeRules.h"
 
-// Includes for Seven Segment Displays
-//#include <Wire.h>
-//#include "Adafruit_MCP23017.h"
-//#include <TmSSD.h>
-
 // Includes for NEW Seven Segment Displays
 #include "DigitLedDisplay.h"
 
@@ -116,11 +111,6 @@ WiFiUDP ntpUDP;
 // Time Objects
 NTPClient timeClient(ntpUDP);
 
-// SSD Objects
-//Adafruit_MCP23017 mcp1;
-//Adafruit_MCP23017 mcp2;
-//TmSSD ssds;
-
 // NEW SSD Objects                  (DIN, CS, CLK)
 DigitLedDisplay ld = DigitLedDisplay(2,3,4);
 
@@ -128,11 +118,7 @@ DigitLedDisplay ld = DigitLedDisplay(2,3,4);
 #define TFT_CS 8
 #define TFT_DC 7
 #define TFT_RST 8 // RST can be set to -1 if you tie it to Arduino's reset
-//#define MISO 3
-//#define MOSI 4
-//#define SCK 2
 Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, TFT_RST);                 // HW
-//Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST, MISO);  // SW
 
 GFXcanvas1 dateCanvas(480, 35);
 
@@ -150,16 +136,14 @@ int loop_interval = 1000;
 unsigned long main_prev_millis = 0;
 unsigned long dots_prev_millis = 0;
 int dots_state = LOW;
-//int ssd_time_top, ssd_time_btm;   // Seven Segment Display values
 char ssd_top[12]; char ssd_btm[12];
-char tft_time_top[10], tft_time_btm[10];
 int selected_clock = 0;           // For main selection
 int menu_selection = 0;           // For menu selection
 
+// Initial values for encoder
 int enc_val = 0;
 int enc_min = 0;
 int enc_max = 5;
-
 
 // Testing time globals
 int tft_top[3] = {0,0,0};
@@ -226,12 +210,6 @@ void setup() {
   setSyncProvider(syncNTPTime);
   setSyncInterval(sync_time);
 
-  // Seven Segment Display setup
-//  mcp1.begin(); mcp2.begin(1);
-//  ssds.begin(&mcp1, &mcp2);
-//  ssds.dots_flash = true;
-//  ssds.dots_interval = 1000;
-
   // NEW Seven Segment Display Setup
   ld.setBright(10);
   ld.setDigitLimit(8);
@@ -274,20 +252,13 @@ void loop() {
     if(in_menu) {
       displayMenu();
       loop_interval = 10000;  // Increase interval (slow down refresh)
-
     } else {
       loop_interval = 1000;
       displayTFTDate(5);
       displayTFTTime(ts[0].tz_index, 0, tft_top);
       displayTFTTime(ts[1].tz_index, 1, tft_mdl);
       displayTFTTime(ts[2].tz_index, 2, tft_btm);
-      //ld.printDigit(12345678);
       showLCDTime();
-      
-
-//      displayTFTTime(0, 0, tft_top);
-//      displayTFTTime(3, 1, tft_mdl);
-//      displayTFTTime(1, 2, tft_btm);
     }
   } // End Timer
 
