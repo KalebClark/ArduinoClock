@@ -17,7 +17,7 @@
 #include "timeRules.h"
 #include "tz_config.h"
 
-// Includes for NEW Seven Segment Displays
+// Includes for Seven Segment Displays
 #include "DigitLedDisplay.h"
 
 // Includes for TFT Display
@@ -36,6 +36,9 @@
 
 // User Config Variables
 const int sync_time = 120;     // Time in seconds to Sync NTP Time
+
+/* ====================================================================
+ *  NO MORE USER CONFIG STUFF BELOW HERE                             */
 
 // Wifi Objects
 WiFiUDP ntpUDP;
@@ -63,19 +66,19 @@ char ssid[] = SECRET_SSID; char pass[] = SECRET_PASS;
 
 // Globals
 int loop_interval = 1000;
-unsigned long main_prev_millis = 0;
-unsigned long dots_prev_millis = 0;
-int dots_state = LOW;
-char ssd_top[12]; char ssd_btm[12];
-int selected_clock = 0;           // For main selection
-int menu_selection = 0;           // For menu selection
+unsigned long main_prev_millis = 0;   // Main one second delay timer
+unsigned long dots_prev_millis = 0;   // LCD Dots timer
+int dots_state = LOW;                 // Initial state for LCD dots
+char ssd_top[12]; char ssd_btm[12];   // Global vars for LCD values
+int selected_clock = 0;               // For main selection
+int menu_selection = 0;               // For menu selection
 
 // Initial values for encoder
 int enc_val = 0;
 int enc_min = 0;
 int enc_max = 5;
 
-// Testing time globals
+// Global vars for TFT clocks
 int tft_top[3] = {0,0,0};
 int tft_mdl[3] = {0,0,0};
 int tft_btm[3] = {0,0,0};
@@ -101,25 +104,25 @@ void setup() {
   setSyncProvider(syncNTPTime);
   setSyncInterval(sync_time);
 
-  // NEW Seven Segment Display Setup
+  // Seven Segment Display Setup
   ld.setBright(10);
   ld.setDigitLimit(8);
-  pinMode(5, OUTPUT); // Top LCD Dots
-  pinMode(6, OUTPUT); // Bottom LCD Dots
+  pinMode(5, OUTPUT); // LCD Dots (Top)
+  pinMode(6, OUTPUT); // LCD Dots (Bottom)
 
   // TFT Setup
   tft.begin();
-  tft.setRotation(1);
-  tft.fillScreen(HX8357_BLACK);
+  tft.setRotation(1);           // Rotate 90
+  tft.fillScreen(HX8357_BLACK); // Clear Screen
 }
-int t1[3];
 
 /* LOOP                                                                 LOOP
  * ========================================================================= */
 void loop() {
   // Main Timer
   unsigned long main_current_millis = millis();
-  // Blink LCD Dots
+  
+  // Blink Dots non-blocking timer
   if(main_current_millis - dots_prev_millis >= 500) {
     dots_prev_millis = main_current_millis;
 
@@ -133,7 +136,7 @@ void loop() {
   }
   
 
-  // Main Loop
+  // Main one second delay non-blocking timer.
   if(main_current_millis - main_prev_millis >= loop_interval) {
     main_prev_millis = main_current_millis;
 
@@ -142,16 +145,16 @@ void loop() {
     Serial.print("InMenu: "); Serial.println(in_menu);
     if(in_menu) {
       displayMenu();
-      loop_interval = 10000;  // Increase interval (slow down refresh)
+      loop_interval = 10000;          // Increase interval (slow down refresh)
     } else {
-      loop_interval = 1000;
+      loop_interval = loop_interval;  // Reset back to loop_interval
       displayTFTDate(5);
       displayTFTTime(ts[0].tz_index, 0, tft_top);
       displayTFTTime(ts[1].tz_index, 1, tft_mdl);
       displayTFTTime(ts[2].tz_index, 2, tft_btm);
       showLCDTime();
     }
-  } // End Timer
+  } // End main one second Timer
 
   // All updates that need to happen every iteration (FAST)
   if(in_menu) {
@@ -170,8 +173,12 @@ void loop() {
  * ========================================================================= */
 void updateEnc(int (*cursor_pos)[2], size_t array_size) {
   int cur_val = enc_val;
-  byte i; 
+  byte i;
+
+  // Read value
   i = enc.rotate();
+
+  // Determine direction & set minimum / maximum
   if(i == 1) {  // CW
     enc_val++;
     if(enc_val >= enc_max) { enc_val = enc_min; }
@@ -182,58 +189,52 @@ void updateEnc(int (*cursor_pos)[2], size_t array_size) {
     if(enc_val < enc_min) { (enc_val = enc_max -1); }
   }
 
-  // On Change
+  // Handle encoder change
   if(cur_val != enc_val) {
-    Serial.print("Enc Val: "); Serial.println(enc_val);
-      int x, y;
-      x = cursor_pos[enc_val][0];
-      y = cursor_pos[enc_val][1];
+    int x, y;
+    x = cursor_pos[enc_val][0];
+    y = cursor_pos[enc_val][1];
 
-      if(in_menu) {
-        tft.fillCircle(x, y-5, 5, HX8357_WHITE);
-      } else {
-        tft.fillRect(x, y, 5, 40, HX8357_WHITE);
-      }
-      Serial.print("Not Active: ");
-    
-      for(int z = 0; z < array_size; z++) {
-        if(z != enc_val) {
-          if(in_menu) {
-            tft.fillCircle(cursor_pos[z][0], cursor_pos[z][1]-5, 5, HX8357_BLACK);
-          } else {
-            tft.fillRect(cursor_pos[z][0], cursor_pos[z][1], 5, 40, HX8357_BLACK);
-          }
-          Serial.print(z); Serial.print(" ");
+    // set dot in menu, and vertical bar in main screen
+    if(in_menu) {
+      tft.fillCircle(x, y-5, 5, HX8357_WHITE);
+    } else {
+      tft.fillRect(x, y, 5, 40, HX8357_WHITE);
+    }
+
+    // Loop through all values NOT current and fill bar/dot black
+    // so that only one bar/dot is visible.
+    for(int z = 0; z < array_size; z++) {
+      if(z != enc_val) {
+        if(in_menu) {
+          tft.fillCircle(cursor_pos[z][0], cursor_pos[z][1]-5, 5, HX8357_BLACK);
+        } else {
+          tft.fillRect(cursor_pos[z][0], cursor_pos[z][1], 5, 40, HX8357_BLACK);
         }
       }
+    }
   }
 
   // button Handling
   byte b;
   b = enc.push();
   if(b == 1) {  // button Pushed
-    Serial.println("Button Pushed");
     if(!in_menu) {
       in_menu = true;
       selected_clock = enc_val;
-      tft.fillScreen(HX8357_BLACK);
-      main_prev_millis = 0;
+      tft.fillScreen(HX8357_BLACK);   // Erase TFT Screen
+      main_prev_millis = 0;           // Reset main one second timer
     } else if(in_menu) {
       // Handle in menu button pushing.
 
       if(enc_val >=0 && enc_val <= 24) {          // Modify timezone
-        Serial.println("Modify TimeZone");
-        Serial.print("Selected Clock: "); Serial.println(selected_clock);
-        Serial.print("Selected TZ: "); Serial.println(enc_val); 
         ts[selected_clock].tz_index = enc_val;
         displayMenu();
       } else if(enc_val >= 25 && enc_val <= 26) { // Modify 24 hour time
-        Serial.print("Selected Clock: "); Serial.println(selected_clock);
-        Serial.print("Selected 24: "); Serial.println(enc_val);
         if(enc_val == 25) { ts[selected_clock].hour24 = true; }
         if(enc_val == 26) { ts[selected_clock].hour24 = false; }
         displayMenu();
-      } else if(enc_val == 27) {           // Save & Exit
+      } else if(enc_val == 27) {                  // Save & Exit
         resetClocks();
         tft.fillScreen(HX8357_BLACK);
         main_prev_millis = 0;
@@ -243,6 +244,12 @@ void updateEnc(int (*cursor_pos)[2], size_t array_size) {
   }
 }
 
+/*
+ * resetClocks()
+ * 
+ * Sets all TFT clocks to 0 so that they will be forcefully updated
+ * on next refresh.
+ * ========================================================================= */
 void resetClocks() {
   tft_top[0] = 0; tft_top[1] = 0; tft_top[2] = 0;
   tft_mdl[0] = 0; tft_mdl[1] = 0; tft_mdl[2] = 0;
@@ -258,6 +265,7 @@ void resetClocks() {
 void displayMenu() {
   int x = 20;
   int y = 100;
+  
   // Font Set
   tft.setFont(&FreeSans9pt7b);
   tft.setTextColor(HX8357_WHITE);
@@ -265,14 +273,17 @@ void displayMenu() {
   // Set Header
   tft.setCursor(0, 24);
   tft.println("Configuration Menu for selected time slot");
-  
+
+  // Loop through all timezones and create columns
   for(int i = 0; i <= 24; i++) {
+    
     // Set color based on selection
     if(i == ts[selected_clock].tz_index) {
       tft.setTextColor(HX8357_RED);
     } else {
       tft.setTextColor(HX8357_WHITE);
     }
+    
     tft.setCursor(x, (y - 24));
     tft.println(tzs[i].title);
     if(i == 9 ) {
@@ -286,24 +297,39 @@ void displayMenu() {
     }
   }
 
-  // 12 or 24 hour time config
+  // 24 hour clock selection
   tft.setTextColor(HX8357_WHITE);
   if(ts[selected_clock].hour24) { tft.setTextColor(HX8357_RED); }
   tft.setCursor(300, 260);
   tft.println("24 Hour Format");
   
-  
+  // 12 hour clock selection
   tft.setTextColor(HX8357_WHITE);
   if(!ts[selected_clock].hour24) { tft.setTextColor(HX8357_RED); }
-  
   tft.setCursor(300, 285);
   tft.println("12 Hour Format");
-  
+
+  // Save & Exit selection
   tft.setCursor(300, 310);
   tft.setTextColor(HX8357_WHITE);
   tft.println("Set and Exit");
 }
 
+/*
+ * showLCDTime()
+ * 
+ * Grab time based on indexes, concat them together and write to LCD's.
+ * The MAX7221 knows about eight digits and probably all on one display. I 
+ * have split that between two 4 digit displays, so when using lcd.printDigit,
+ * it takes eight numbers as input. 
+ * 
+ * The MAX7221 is wired correctly, but when you enter the eight digits into
+ * lcd.printDigit, it displays them in reverse from LCD2 to LCD1. Instead of
+ * wiring everything backwards, I decided to just reverse the inputs to keep 
+ * the wiring correct.
+ * 
+ * Yes wonky, but whatever!
+ * ========================================================================= */
 void showLCDTime() {
   char output[20];
   getLCDTime(ts[3].tz_index, 3, ssd_top);
@@ -311,12 +337,14 @@ void showLCDTime() {
   strcpy(output, ssd_btm);
   strcat(output, ssd_top);
 
-  Serial.print("SSDTOP: "); Serial.println(ssd_top);
-  Serial.print("SSDBTM: "); Serial.println(ssd_btm);
-  Serial.print("Output: "); Serial.println(output);
   ld.printDigit(atol(output));
 }
 
+/*
+ * getLCDTime()
+ * 
+ * Get time from tz index, format, reverse and return. 
+ * ========================================================================= */
 char* getLCDTime(int tz_index, int pos, char *time_slot) {
   int t_hour, t_min, t_sec;
   TimeChangeRule *tcr;
@@ -334,8 +362,14 @@ char* getLCDTime(int tz_index, int pos, char *time_slot) {
   t_min = minute(t); t_sec = second(t);
 
   sprintf(time_slot, "%.2d%.2d", t_hour, t_min);
+  return reverseNum(time_slot);
 }
 
+/*
+ * reverseNum()
+ * 
+ * Reverse a string! +1 for non-confusing naming of functions!
+ * ========================================================================= */
 char* reverseNum(char *str) {
   size_t len = strlen(str);
   size_t i = 0;
@@ -474,6 +508,11 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
   ref[0] = t_hour; ref[1] = t_min; ref[2] = t_sec;
 }
 
+/*
+ * getLocalOffset()
+ * 
+ * Grab the offset for local timezone (index 0 in ts) and return hour value.
+ * ========================================================================= */
 int getLocalOffset() {
   TimeChangeRule *tcr;
   Timezone tz = tzs[0].tz;
@@ -496,6 +535,7 @@ void displayTFTDate(int tz_index) {
   time_t utc = now();
   time_t d = tz.toLocal(utc, &tcr);
 
+  // Month
   strcpy(m, monthShortStr(month(d)));
   sprintf(buf, "%s %s %.2d %d", "Saturday", m, day(d), year(d));
 
