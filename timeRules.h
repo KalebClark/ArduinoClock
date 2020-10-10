@@ -3,6 +3,10 @@ struct timeZones {
   const char *title;
 };
 
+// UTC +12:00 (Auckland, Suva, Petropoavlovsk...)
+TimeChangeRule p12STD_r {"p12S", Last, Sun, Mar, 1, 720};
+Timezone p12STD(p12STD_r);
+
 // UTC +11:00 (Noumea, Magadan)
 TimeChangeRule p11STD_r = {"p11S", Last, Sun, Mar, 1, 660};
 Timezone p11STD(p11STD_r);

@@ -58,8 +58,9 @@ const int sync_time = 120;     // Time in seconds to Sync NTP Time
  * In the array below, you can customize the names for these to fit
  * your specific region or taste. 
  */
-#define tzCount 24
+#define tzCount 25
 timeZones tzs[tzCount] = {
+  {p12STD, "Auckland"},
   {p11STD, "Magadan"},    // LOCAL TIMEZONE
   {p10STD, "Sydney"},   // UTC  0
   {p9STD, "Tokyo"},    // UTC -5
@@ -93,7 +94,7 @@ struct timeSlots {
 
 #define tsCount 5
 timeSlots ts[tsCount] = {
-  {6, false},   // (DEFAULT) Top TFT display 
+  {19, false},   // (DEFAULT) Top TFT display 
   {2, false},    // Middle TFT Display
   {3, false},   // Bottom TFT Display
   {6, false},   // Top LCD Display
@@ -175,7 +176,7 @@ int main_cursor[5][2] = {
   {470, 250}
 };
 
-int menu_cursor[27][2] = {
+int menu_cursor[28][2] = {
   {5, 75},
   {5, 100},
   {5, 125},
@@ -200,6 +201,7 @@ int menu_cursor[27][2] = {
   {285, 100},
   {285, 125},
   {285, 150},
+  {285, 175},
   {285, 260},
   {285, 285},
   {285, 310}
@@ -291,13 +293,12 @@ void loop() {
 
   // All updates that need to happen every iteration (FAST)
   if(in_menu) {
-    enc_max = 27;
+    enc_max = 28;
     updateEnc(menu_cursor, sizeof(menu_cursor)/sizeof(menu_cursor[0])); 
   } else {
     enc_max = 5;
     updateEnc(main_cursor, sizeof(main_cursor)/sizeof(main_cursor[0]));
   }
-  //ssds.update();  // Disabled until I re-work with MAX7221's
 }
 
 /*
@@ -358,19 +359,19 @@ void updateEnc(int (*cursor_pos)[2], size_t array_size) {
     } else if(in_menu) {
       // Handle in menu button pushing.
 
-      if(enc_val >=0 && enc_val <= 23) {          // Modify timezone
+      if(enc_val >=0 && enc_val <= 24) {          // Modify timezone
         Serial.println("Modify TimeZone");
         Serial.print("Selected Clock: "); Serial.println(selected_clock);
         Serial.print("Selected TZ: "); Serial.println(enc_val); 
         ts[selected_clock].tz_index = enc_val;
         displayMenu();
-      } else if(enc_val >= 24 && enc_val <= 25) { // Modify 24 hour time
+      } else if(enc_val >= 25 && enc_val <= 26) { // Modify 24 hour time
         Serial.print("Selected Clock: "); Serial.println(selected_clock);
         Serial.print("Selected 24: "); Serial.println(enc_val);
-        if(enc_val == 24) { ts[selected_clock].hour24 = true; }
-        if(enc_val == 25) { ts[selected_clock].hour24 = false; }
+        if(enc_val == 25) { ts[selected_clock].hour24 = true; }
+        if(enc_val == 26) { ts[selected_clock].hour24 = false; }
         displayMenu();
-      } else if(enc_val == 26) {           // Save & Exit
+      } else if(enc_val == 27) {           // Save & Exit
         resetClocks();
         tft.fillScreen(HX8357_BLACK);
         main_prev_millis = 0;
@@ -403,7 +404,7 @@ void displayMenu() {
   tft.setCursor(0, 24);
   tft.println("Configuration Menu for selected time slot");
   
-  for(int i = 0; i <= 23; i++) {
+  for(int i = 0; i <= 24; i++) {
     // Set color based on selection
     if(i == ts[selected_clock].tz_index) {
 //      Serial.print("Selected: "); Serial.println(i);
