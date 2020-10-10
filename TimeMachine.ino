@@ -78,7 +78,8 @@ int enc_val = 0;
 int enc_min = 0;
 int enc_max = 5;
 
-// Global vars for TFT clocks
+// Global vars for TFT clocks & Date
+int tft_day = 0;
 int tft_top[3] = {0,0,0};
 int tft_mdl[3] = {0,0,0};
 int tft_btm[3] = {0,0,0};
@@ -135,24 +136,25 @@ void loop() {
     digitalWrite(6, dots_state);
   }
   
-
   // Main one second delay non-blocking timer.
   if(main_current_millis - main_prev_millis >= loop_interval) {
     main_prev_millis = main_current_millis;
 
     // Everything that needs to happen on main one second timer
     Serial.print("DBG Time: "); Serial.println(main_current_millis);
-    Serial.print("InMenu: "); Serial.println(in_menu);
     if(in_menu) {
       displayMenu();
       loop_interval = 10000;          // Increase interval (slow down refresh)
     } else {
-      loop_interval = loop_interval;  // Reset back to loop_interval
+      loop_interval = 1000;  // Reset back to loop_interval
       displayTFTDate(5);
       displayTFTTime(ts[0].tz_index, 0, tft_top);
       displayTFTTime(ts[1].tz_index, 1, tft_mdl);
       displayTFTTime(ts[2].tz_index, 2, tft_btm);
       showLCDTime();
+
+      // RSSI
+      showRSSI();
     }
   } // End main one second Timer
 
@@ -443,9 +445,9 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
 
     // Print hours offset
     tft.setCursor((bw+bx)+10, (by+12));
-    sprintf(os, "%d%s", os_num, "HRS");
+    sprintf(os, "%d %s", os_num, "HRS");
     if(int(os_num) >=0) {
-      sprintf(os, "+%d%s", os_num, "HRS");
+      sprintf(os, "+%d %s", os_num, "HRS");
     }
     tft.println(os);
   }
@@ -514,21 +516,25 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
  * Grab the offset for local timezone (index 0 in ts) and return hour value.
  * ========================================================================= */
 int getLocalOffset() {
+  // Get timezone index
+  int tzi = ts[0].tz_index;
+  
   TimeChangeRule *tcr;
-  Timezone tz = tzs[0].tz;
+  Timezone tz = tzs[tzi].tz;
   time_t utc = now();
   time_t t = tz.toLocal(utc, &tcr);
   return (tcr->offset/60);
 }
 
 /*
- * displayTFTDate(int tz_index)
+ * displayTFTDate()
  * 
- * TODO: detect change & fillRect
- */
+ * Statically display date at top of screen
+ * ========================================================================= */
 void displayTFTDate(int tz_index) {
   int cntr_x;
   char m[4];
+  
   char buf[40];
   TimeChangeRule *tcr;
   Timezone tz = tzs[tz_index].tz;
@@ -537,7 +543,7 @@ void displayTFTDate(int tz_index) {
 
   // Month
   strcpy(m, monthShortStr(month(d)));
-  sprintf(buf, "%s %s %.2d %d", "Saturday", m, day(d), year(d));
+  sprintf(buf, "%s %s %.2d %d", dayStr(weekday(d)), m, day(d), year(d));
 
   int16_t x1, y1;
   uint16_t w, h;
@@ -545,14 +551,63 @@ void displayTFTDate(int tz_index) {
   tft.setFont(&FreeSans12pt7b);
 
   tft.setTextColor(HX8357_WHITE);
+
+  // Get text bounds for centering. 
   tft.getTextBounds(buf, 0, 35, &x1, &y1, &w, &h);
-   cntr_x = (480 - w) / 2;
+//   cntr_x = (480 - w) / 2;
   tft.setCursor(0, +h);
   
   tft.println(buf);
   tft.drawFastHLine(0, (h + 8), 480, HX8357_WHITE);
 }
 
+/*
+ * showRSSI();
+ * 
+ * Get the RSSI value from wifi and show in top right as status.
+ * ========================================================================= */
+void showRSSI() {
+  long rssi = WiFi.RSSI();
+  uint16_t bar_color = HX8357_WHITE;
+
+  // Draw "WiFi:"
+  tft.setFont(&FreeSans9pt7b);
+  tft.setTextColor(HX8357_WHITE);
+  tft.setCursor(410, 25);
+  tft.println("WiFi:");
+
+  // Set Color of bars
+  if(rssi >= -80 && rssi <= -69) {        // NOT GOOD
+    bar_color = HX8357_RED;
+  } else if(rssi >= -70 && rssi <= -66) { // Okay
+    bar_color = HX8357_YELLOW;
+  } else if(rssi >= -67 && rssi <= -29) { // VERY GOOD
+    bar_color = HX8357_GREEN;
+  } else if(rssi >= -30) {                // EXCELENT
+    bar_color = HX8357_GREEN;
+  }
+
+  // Overwrite bars with black for refresh
+  tft.drawFastHLine(460, 25, 5, HX8357_BLACK);
+  tft.drawFastHLine(458, 20, 9, HX8357_BLACK);
+  tft.drawFastHLine(456, 15, 13, HX8357_BLACK);
+  tft.drawFastHLine(454, 10, 17, HX8357_BLACK);
+
+
+  // Set bars
+  if(rssi >= -80) {
+    tft.drawFastHLine(460, 25, 5, bar_color);
+  }
+  if(rssi >= -70) {
+    tft.drawFastHLine(458, 20, 9, bar_color);
+  }
+  if(rssi >= -67) {
+    tft.drawFastHLine(456, 15, 13, bar_color);
+  }
+  if(rssi >= -30) {
+    tft.drawFastHLine(454, 10, 17, bar_color);
+  }
+}
 /*
  * syncNTPTime();
  * 

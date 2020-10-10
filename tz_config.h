@@ -28,38 +28,38 @@ struct timeSlots {
  */
 
 timeZones tzs[tzCount] = {
-  {p12STD, "Auckland"},
-  {p11STD, "Magadan"},    // LOCAL TIMEZONE
-  {p10STD, "Sydney"},   // UTC  0
-  {p9STD, "Tokyo"},    // UTC -5
-  {p8STD, "Perth"},    // UTC -6
-  {p7STD, "Bangkok"},   // UTC -7
-  {p6STD, "Ornsk"},    // UTC -7 (no DST)
-  {p5STD, "Karachi"},     // UTC -8
-  {p4STD, "Dubai"},
-  {p3DST, "Moscow"},
-  {p2DST, "Cairo"},
-  {p1DST, "Berlin"},
-  {UTC, "London"},
-  {n1DST, "Azores Is"},
-  {n2DST, "Sandwich Is"},
-  {n3DST, "Buenos Aires"},
-  {n4DST, "St Johns"},
-  {n5DST, "Eastern"},
-  {n6DST, "Central"},
-  {n7DST, "Mountain"},
-  {n8DST, "Pacific"},
-  {n9DST, "Anchorage"},
-  {n10DST, "Honolulu"},
-  {n11DST, "Niue"},
-  {n12DST, "Baker Is"}
+  {p12STD, "Auckland"},   // 0
+  {p11STD, "Magadan"},    // 1
+  {p10STD, "Sydney"},     // 2
+  {p9STD, "Tokyo"},       // 3
+  {p8STD, "Perth"},       // 4
+  {p7STD, "Bangkok"},     // 5
+  {p6STD, "Ornsk"},       // 6
+  {p5STD, "Karachi"},     // 7
+  {p4STD, "Dubai"},       // 8
+  {p3DST, "Moscow"},      // 9
+  {p2DST, "Cairo"},       // 10
+  {p1DST, "Berlin"},      // 11
+  {UTC, "London"},        // 12
+  {n1DST, "Azores Is"},   // 13
+  {n2DST, "Sandwich Is"}, // 14
+  {n3DST, "Buenos Aires"},// 15
+  {n4DST, "St Johns"},    // 16
+  {n5DST, "Eastern"},     // 17
+  {n6DST, "Central"},     // 18
+  {n7DST, "Mountain"},    // 19
+  {n8DST, "Pacific"},     // 20
+  {n9DST, "Anchorage"},   // 21
+  {n10DST, "Honolulu"},   // 22
+  {n11DST, "Niue"},       // 23
+  {n12DST, "Baker Is"}    // 24
 };
 
 #define tsCount 5
 timeSlots ts[tsCount] = {
-  {19, false},   // (DEFAULT) Top TFT display 
-  {2, false},    // Middle TFT Display
-  {3, false},   // Bottom TFT Display
-  {6, false},   // Top LCD Display
+  {20, false},   // (DEFAULT) Top TFT display 
+  {18, false},    // Middle TFT Display
+  {17, false},   // Bottom TFT Display
+  {20, true},   // Top LCD Display
   {2, false}    // Bottom LCD Display
 };
