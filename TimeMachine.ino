@@ -96,15 +96,6 @@ timeSlots ts[tsCount] = {
   {2, false}    // Bottom LCD Display
 };
 
-// You can set timezone defaults here.
-// DEPRICATED
-int time_slot_zones[4] = {
-  5,    // 0 LCD Top
-  0,    // 1 LCD Bottom
-  5,    // 2 SSD Top
-  0     // 3 SSD Bottom
-};
-
 // Wifi Objects
 WiFiUDP ntpUDP;
 
@@ -378,12 +369,10 @@ void displayMenu() {
   for(int i = 0; i <= 24; i++) {
     // Set color based on selection
     if(i == ts[selected_clock].tz_index) {
-//      Serial.print("Selected: "); Serial.println(i);
       tft.setTextColor(HX8357_RED);
     } else {
       tft.setTextColor(HX8357_WHITE);
     }
-    //Serial.println(tzs[i].title);
     tft.setCursor(x, (y - 24));
     tft.println(tzs[i].title);
     if(i == 9 ) {
@@ -416,8 +405,6 @@ void displayMenu() {
 }
 
 void showLCDTime() {
-//  int lcd_top = getLCDTime(5, 3);
-//  int lcd_btm = getLCDTime(2, 4);
   char output[20];
   getLCDTime(ts[3].tz_index, 3, ssd_top);
   getLCDTime(ts[4].tz_index, 4, ssd_btm);
@@ -432,7 +419,6 @@ void showLCDTime() {
 
 char* getLCDTime(int tz_index, int pos, char *time_slot) {
   int t_hour, t_min, t_sec;
-//  char output[12];
   TimeChangeRule *tcr;
   Timezone tz = tzs[tz_index].tz;
   time_t utc = now();
@@ -448,11 +434,6 @@ char* getLCDTime(int tz_index, int pos, char *time_slot) {
   t_min = minute(t); t_sec = second(t);
 
   sprintf(time_slot, "%.2d%.2d", t_hour, t_min);
-
-//  Serial.print("F_out: "); Serial.println(time_slot);
-//  Serial.print("R_out: "); Serial.println(reverseNum(time_slot));
-  return reverseNum(time_slot);
-//  return reverseNum(output);
 }
 
 char* reverseNum(char *str) {
@@ -495,7 +476,6 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
   }
   
   t_min = minute(t); t_sec = second(t);
-//  t_hour = 88; t_min = 88; t_sec = 88;
 
   // Set coordinates for position
   if(pos == 0) {        // Top Position
@@ -566,14 +546,6 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
     tft.println(t_min_s);
   }
   x = (x+57);
-  
-  // Second Dots
-  //if(ref[0] == 0) {
-  //  tft.fillRect(x, (y-34), 15, box_h, bg_color);
-  //  tft.setCursor((x+1), y);
-  //  tft.println(":");
-  //}
-  //x = (x + 17);
 
   // AM/PM
   tft.setCursor((x+2), y);
@@ -598,11 +570,8 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
     tft.println(t_sec_s);
   }
   x = (x+57);
-
-
-
+  
   ref[0] = t_hour; ref[1] = t_min; ref[2] = t_sec;
-
 }
 
 int getLocalOffset() {
@@ -627,9 +596,6 @@ void displayTFTDate(int tz_index) {
   time_t utc = now();
   time_t d = tz.toLocal(utc, &tcr);
 
-  
-//  time_t d = getTzData(tz_index);
-
   strcpy(m, monthShortStr(month(d)));
   sprintf(buf, "%s %s %.2d %d", "Saturday", m, day(d), year(d));
 
@@ -640,7 +606,6 @@ void displayTFTDate(int tz_index) {
 
   tft.setTextColor(HX8357_WHITE);
   tft.getTextBounds(buf, 0, 35, &x1, &y1, &w, &h);
-  //tft.fillRect(cntr_x, 0, w, h, HX8357_BLACK);
   cntr_x = (480 - w) / 2;
   tft.setCursor(0, +h);
   
