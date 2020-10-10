@@ -4,6 +4,7 @@
  * Playlist: Social Distortion, NoFX, Red Hot Chili Peppers, No Doubt, Megadeth
  *           Descendents
  */
+ 
 // Wifi Includes
 #include <WiFiNINA.h>
 #include <WiFiUdp.h>
@@ -14,13 +15,9 @@
 #include <TimeLib.h>
 #include <Timezone.h>
 #include "timeRules.h"
+#include "tz_config.h"
 
 // Includes for Seven Segment Displays
-//#include <Wire.h>
-//#include "Adafruit_MCP23017.h"
-//#include <TmSSD.h>
-
-// Includes for NEW Seven Segment Displays
 #include "DigitLedDisplay.h"
 
 // Includes for TFT Display
@@ -34,92 +31,20 @@
 // Encoder Includes
 #include <SimpleRotary.h>
 
+// Misc Includes
+#include "menus.h"
+
 // User Config Variables
 const int sync_time = 120;     // Time in seconds to Sync NTP Time
 
-/*
- * This can get a little confusing since I tried my hardest to make this
- * as region agnostic as possible. There are MANY timezones and rules 
- * that go with them, too many to list on this display without a ton more
- * code, so I went with 24 configured timezones. One for UTC and one for 
- * each offset. Each is configured as Standard time & Daylight Savings. 
- * 
- * The naming convention is (p/n)[offset](STD/DST). An example for 
- * offset of -04:00 with Standard time and Daylight Savings time
- * respectivley would be 'n4STD' and 'n4DST'.
- * 
- * Using the DST variant will automatically change Daylight Savings
- * on the correct day, and back to STD
- * 
- * Using the STD variant will NOT use Daylight Savings Time.
- * 
- * These are all listed in timeRules.h. 
- * 
- * In the array below, you can customize the names for these to fit
- * your specific region or taste. 
- */
-#define tzCount 25
-timeZones tzs[tzCount] = {
-  {p12STD, "Auckland"},
-  {p11STD, "Magadan"},    // LOCAL TIMEZONE
-  {p10STD, "Sydney"},   // UTC  0
-  {p9STD, "Tokyo"},    // UTC -5
-  {p8STD, "Perth"},    // UTC -6
-  {p7STD, "Bangkok"},   // UTC -7
-  {p6STD, "Ornsk"},    // UTC -7 (no DST)
-  {p5STD, "Karachi"},     // UTC -8
-  {p4STD, "Dubai"},
-  {p3DST, "Moscow"},
-  {p2DST, "Cairo"},
-  {p1DST, "Berlin"},
-  {UTC, "London"},
-  {n1DST, "Azores Is"},
-  {n2DST, "Sandwich Is"},
-  {n3DST, "Buenos Aires"},
-  {n4DST, "St Johns"},
-  {n5DST, "Eastern"},
-  {n6DST, "Central"},
-  {n7DST, "Mountain"},
-  {n8DST, "Pacific"},
-  {n9DST, "Anchorage"},
-  {n10DST, "Honolulu"},
-  {n11DST, "Niue"},
-  {n12DST, "Baker Is"}
-};
-
-struct timeSlots {
-  int tz_index;
-  bool hour24;
-};
-
-#define tsCount 5
-timeSlots ts[tsCount] = {
-  {19, false},   // (DEFAULT) Top TFT display 
-  {2, false},    // Middle TFT Display
-  {3, false},   // Bottom TFT Display
-  {6, false},   // Top LCD Display
-  {2, false}    // Bottom LCD Display
-};
-
-// You can set timezone defaults here.
-// DEPRICATED
-int time_slot_zones[4] = {
-  5,    // 0 LCD Top
-  0,    // 1 LCD Bottom
-  5,    // 2 SSD Top
-  0     // 3 SSD Bottom
-};
+/* ====================================================================
+ *  NO MORE USER CONFIG STUFF BELOW HERE                             */
 
 // Wifi Objects
 WiFiUDP ntpUDP;
 
 // Time Objects
 NTPClient timeClient(ntpUDP);
-
-// SSD Objects
-//Adafruit_MCP23017 mcp1;
-//Adafruit_MCP23017 mcp2;
-//TmSSD ssds;
 
 // NEW SSD Objects                  (DIN, CS, CLK)
 DigitLedDisplay ld = DigitLedDisplay(2,3,4);
@@ -128,13 +53,7 @@ DigitLedDisplay ld = DigitLedDisplay(2,3,4);
 #define TFT_CS 8
 #define TFT_DC 7
 #define TFT_RST 8 // RST can be set to -1 if you tie it to Arduino's reset
-//#define MISO 3
-//#define MOSI 4
-//#define SCK 2
 Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, TFT_RST);                 // HW
-//Adafruit_HX8357 tft = Adafruit_HX8357(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST, MISO);  // SW
-
-GFXcanvas1 dateCanvas(480, 35);
 
 // Encoder Object
 SimpleRotary enc(A0, A1, A2);
@@ -147,65 +66,25 @@ char ssid[] = SECRET_SSID; char pass[] = SECRET_PASS;
 
 // Globals
 int loop_interval = 1000;
-unsigned long main_prev_millis = 0;
-unsigned long dots_prev_millis = 0;
-int dots_state = LOW;
-//int ssd_time_top, ssd_time_btm;   // Seven Segment Display values
-char ssd_top[12]; char ssd_btm[12];
-char tft_time_top[10], tft_time_btm[10];
-int selected_clock = 0;           // For main selection
-int menu_selection = 0;           // For menu selection
+unsigned long main_prev_millis = 0;   // Main one second delay timer
+unsigned long dots_prev_millis = 0;   // LCD Dots timer
+int dots_state = LOW;                 // Initial state for LCD dots
+char ssd_top[12]; char ssd_btm[12];   // Global vars for LCD values
+int selected_clock = 0;               // For main selection
+int menu_selection = 0;               // For menu selection
 
+// Initial values for encoder
 int enc_val = 0;
 int enc_min = 0;
 int enc_max = 5;
 
-
-// Testing time globals
+// Global vars for TFT clocks & Date
+int tft_day = 0;
 int tft_top[3] = {0,0,0};
 int tft_mdl[3] = {0,0,0};
 int tft_btm[3] = {0,0,0};
 
 bool in_menu = false;
-
-int main_cursor[5][2] = {
-  {5, 60},
-  {5, 130},
-  {5, 200},
-  {470, 150},
-  {470, 250}
-};
-
-int menu_cursor[28][2] = {
-  {5, 75},
-  {5, 100},
-  {5, 125},
-  {5, 150},
-  {5, 175},
-  {5, 200},
-  {5, 225},
-  {5, 250},
-  {5, 275},
-  {5, 300},
-  {155, 75},
-  {155, 100},
-  {155, 125},
-  {155, 150},
-  {155, 175},
-  {155, 200},
-  {155, 225},
-  {155, 250},
-  {155, 275},
-  {155, 300},
-  {285, 75},
-  {285, 100},
-  {285, 125},
-  {285, 150},
-  {285, 175},
-  {285, 260},
-  {285, 285},
-  {285, 310}
-};
 
 /* SETUP                                                               SETUP
  * ========================================================================= */
@@ -226,31 +105,25 @@ void setup() {
   setSyncProvider(syncNTPTime);
   setSyncInterval(sync_time);
 
-  // Seven Segment Display setup
-//  mcp1.begin(); mcp2.begin(1);
-//  ssds.begin(&mcp1, &mcp2);
-//  ssds.dots_flash = true;
-//  ssds.dots_interval = 1000;
-
-  // NEW Seven Segment Display Setup
+  // Seven Segment Display Setup
   ld.setBright(10);
   ld.setDigitLimit(8);
-  pinMode(5, OUTPUT); // Top LCD Dots
-  pinMode(6, OUTPUT); // Bottom LCD Dots
+  pinMode(5, OUTPUT); // LCD Dots (Top)
+  pinMode(6, OUTPUT); // LCD Dots (Bottom)
 
   // TFT Setup
   tft.begin();
-  tft.setRotation(1);
-  tft.fillScreen(HX8357_BLACK);
+  tft.setRotation(1);           // Rotate 90
+  tft.fillScreen(HX8357_BLACK); // Clear Screen
 }
-int t1[3];
 
 /* LOOP                                                                 LOOP
  * ========================================================================= */
 void loop() {
   // Main Timer
   unsigned long main_current_millis = millis();
-  // Blink LCD Dots
+  
+  // Blink Dots non-blocking timer
   if(main_current_millis - dots_prev_millis >= 500) {
     dots_prev_millis = main_current_millis;
 
@@ -263,33 +136,27 @@ void loop() {
     digitalWrite(6, dots_state);
   }
   
-
-  // Main Loop
+  // Main one second delay non-blocking timer.
   if(main_current_millis - main_prev_millis >= loop_interval) {
     main_prev_millis = main_current_millis;
 
     // Everything that needs to happen on main one second timer
     Serial.print("DBG Time: "); Serial.println(main_current_millis);
-    Serial.print("InMenu: "); Serial.println(in_menu);
     if(in_menu) {
       displayMenu();
-      loop_interval = 10000;  // Increase interval (slow down refresh)
-
+      loop_interval = 10000;          // Increase interval (slow down refresh)
     } else {
-      loop_interval = 1000;
+      loop_interval = 1000;  // Reset back to loop_interval
       displayTFTDate(5);
       displayTFTTime(ts[0].tz_index, 0, tft_top);
       displayTFTTime(ts[1].tz_index, 1, tft_mdl);
       displayTFTTime(ts[2].tz_index, 2, tft_btm);
-      //ld.printDigit(12345678);
       showLCDTime();
-      
 
-//      displayTFTTime(0, 0, tft_top);
-//      displayTFTTime(3, 1, tft_mdl);
-//      displayTFTTime(1, 2, tft_btm);
+      // RSSI
+      showRSSI();
     }
-  } // End Timer
+  } // End main one second Timer
 
   // All updates that need to happen every iteration (FAST)
   if(in_menu) {
@@ -308,8 +175,12 @@ void loop() {
  * ========================================================================= */
 void updateEnc(int (*cursor_pos)[2], size_t array_size) {
   int cur_val = enc_val;
-  byte i; 
+  byte i;
+
+  // Read value
   i = enc.rotate();
+
+  // Determine direction & set minimum / maximum
   if(i == 1) {  // CW
     enc_val++;
     if(enc_val >= enc_max) { enc_val = enc_min; }
@@ -320,58 +191,52 @@ void updateEnc(int (*cursor_pos)[2], size_t array_size) {
     if(enc_val < enc_min) { (enc_val = enc_max -1); }
   }
 
-  // On Change
+  // Handle encoder change
   if(cur_val != enc_val) {
-    Serial.print("Enc Val: "); Serial.println(enc_val);
-      int x, y;
-      x = cursor_pos[enc_val][0];
-      y = cursor_pos[enc_val][1];
+    int x, y;
+    x = cursor_pos[enc_val][0];
+    y = cursor_pos[enc_val][1];
 
-      if(in_menu) {
-        tft.fillCircle(x, y-5, 5, HX8357_WHITE);
-      } else {
-        tft.fillRect(x, y, 5, 40, HX8357_WHITE);
-      }
-      Serial.print("Not Active: ");
-    
-      for(int z = 0; z < array_size; z++) {
-        if(z != enc_val) {
-          if(in_menu) {
-            tft.fillCircle(cursor_pos[z][0], cursor_pos[z][1]-5, 5, HX8357_BLACK);
-          } else {
-            tft.fillRect(cursor_pos[z][0], cursor_pos[z][1], 5, 40, HX8357_BLACK);
-          }
-          Serial.print(z); Serial.print(" ");
+    // set dot in menu, and vertical bar in main screen
+    if(in_menu) {
+      tft.fillCircle(x, y-5, 5, HX8357_WHITE);
+    } else {
+      tft.fillRect(x, y, 5, 40, HX8357_WHITE);
+    }
+
+    // Loop through all values NOT current and fill bar/dot black
+    // so that only one bar/dot is visible.
+    for(int z = 0; z < array_size; z++) {
+      if(z != enc_val) {
+        if(in_menu) {
+          tft.fillCircle(cursor_pos[z][0], cursor_pos[z][1]-5, 5, HX8357_BLACK);
+        } else {
+          tft.fillRect(cursor_pos[z][0], cursor_pos[z][1], 5, 40, HX8357_BLACK);
         }
       }
+    }
   }
 
   // button Handling
   byte b;
   b = enc.push();
   if(b == 1) {  // button Pushed
-    Serial.println("Button Pushed");
     if(!in_menu) {
       in_menu = true;
       selected_clock = enc_val;
-      tft.fillScreen(HX8357_BLACK);
-      main_prev_millis = 0;
+      tft.fillScreen(HX8357_BLACK);   // Erase TFT Screen
+      main_prev_millis = 0;           // Reset main one second timer
     } else if(in_menu) {
       // Handle in menu button pushing.
 
       if(enc_val >=0 && enc_val <= 24) {          // Modify timezone
-        Serial.println("Modify TimeZone");
-        Serial.print("Selected Clock: "); Serial.println(selected_clock);
-        Serial.print("Selected TZ: "); Serial.println(enc_val); 
         ts[selected_clock].tz_index = enc_val;
         displayMenu();
       } else if(enc_val >= 25 && enc_val <= 26) { // Modify 24 hour time
-        Serial.print("Selected Clock: "); Serial.println(selected_clock);
-        Serial.print("Selected 24: "); Serial.println(enc_val);
         if(enc_val == 25) { ts[selected_clock].hour24 = true; }
         if(enc_val == 26) { ts[selected_clock].hour24 = false; }
         displayMenu();
-      } else if(enc_val == 27) {           // Save & Exit
+      } else if(enc_val == 27) {                  // Save & Exit
         resetClocks();
         tft.fillScreen(HX8357_BLACK);
         main_prev_millis = 0;
@@ -381,6 +246,12 @@ void updateEnc(int (*cursor_pos)[2], size_t array_size) {
   }
 }
 
+/*
+ * resetClocks()
+ * 
+ * Sets all TFT clocks to 0 so that they will be forcefully updated
+ * on next refresh.
+ * ========================================================================= */
 void resetClocks() {
   tft_top[0] = 0; tft_top[1] = 0; tft_top[2] = 0;
   tft_mdl[0] = 0; tft_mdl[1] = 0; tft_mdl[2] = 0;
@@ -396,6 +267,7 @@ void resetClocks() {
 void displayMenu() {
   int x = 20;
   int y = 100;
+  
   // Font Set
   tft.setFont(&FreeSans9pt7b);
   tft.setTextColor(HX8357_WHITE);
@@ -403,16 +275,17 @@ void displayMenu() {
   // Set Header
   tft.setCursor(0, 24);
   tft.println("Configuration Menu for selected time slot");
-  
+
+  // Loop through all timezones and create columns
   for(int i = 0; i <= 24; i++) {
+    
     // Set color based on selection
     if(i == ts[selected_clock].tz_index) {
-//      Serial.print("Selected: "); Serial.println(i);
       tft.setTextColor(HX8357_RED);
     } else {
       tft.setTextColor(HX8357_WHITE);
     }
-    //Serial.println(tzs[i].title);
+    
     tft.setCursor(x, (y - 24));
     tft.println(tzs[i].title);
     if(i == 9 ) {
@@ -426,42 +299,56 @@ void displayMenu() {
     }
   }
 
-  // 12 or 24 hour time config
+  // 24 hour clock selection
   tft.setTextColor(HX8357_WHITE);
   if(ts[selected_clock].hour24) { tft.setTextColor(HX8357_RED); }
   tft.setCursor(300, 260);
   tft.println("24 Hour Format");
   
-  
+  // 12 hour clock selection
   tft.setTextColor(HX8357_WHITE);
   if(!ts[selected_clock].hour24) { tft.setTextColor(HX8357_RED); }
-  
   tft.setCursor(300, 285);
   tft.println("12 Hour Format");
-  
+
+  // Save & Exit selection
   tft.setCursor(300, 310);
   tft.setTextColor(HX8357_WHITE);
   tft.println("Set and Exit");
 }
 
+/*
+ * showLCDTime()
+ * 
+ * Grab time based on indexes, concat them together and write to LCD's.
+ * The MAX7221 knows about eight digits and probably all on one display. I 
+ * have split that between two 4 digit displays, so when using lcd.printDigit,
+ * it takes eight numbers as input. 
+ * 
+ * The MAX7221 is wired correctly, but when you enter the eight digits into
+ * lcd.printDigit, it displays them in reverse from LCD2 to LCD1. Instead of
+ * wiring everything backwards, I decided to just reverse the inputs to keep 
+ * the wiring correct.
+ * 
+ * Yes wonky, but whatever!
+ * ========================================================================= */
 void showLCDTime() {
-//  int lcd_top = getLCDTime(5, 3);
-//  int lcd_btm = getLCDTime(2, 4);
   char output[20];
   getLCDTime(ts[3].tz_index, 3, ssd_top);
   getLCDTime(ts[4].tz_index, 4, ssd_btm);
   strcpy(output, ssd_btm);
   strcat(output, ssd_top);
 
-  Serial.print("SSDTOP: "); Serial.println(ssd_top);
-  Serial.print("SSDBTM: "); Serial.println(ssd_btm);
-  Serial.print("Output: "); Serial.println(output);
   ld.printDigit(atol(output));
 }
 
+/*
+ * getLCDTime()
+ * 
+ * Get time from tz index, format, reverse and return. 
+ * ========================================================================= */
 char* getLCDTime(int tz_index, int pos, char *time_slot) {
   int t_hour, t_min, t_sec;
-//  char output[12];
   TimeChangeRule *tcr;
   Timezone tz = tzs[tz_index].tz;
   time_t utc = now();
@@ -477,13 +364,14 @@ char* getLCDTime(int tz_index, int pos, char *time_slot) {
   t_min = minute(t); t_sec = second(t);
 
   sprintf(time_slot, "%.2d%.2d", t_hour, t_min);
-
-//  Serial.print("F_out: "); Serial.println(time_slot);
-//  Serial.print("R_out: "); Serial.println(reverseNum(time_slot));
   return reverseNum(time_slot);
-//  return reverseNum(output);
 }
 
+/*
+ * reverseNum()
+ * 
+ * Reverse a string! +1 for non-confusing naming of functions!
+ * ========================================================================= */
 char* reverseNum(char *str) {
   size_t len = strlen(str);
   size_t i = 0;
@@ -524,7 +412,6 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
   }
   
   t_min = minute(t); t_sec = second(t);
-//  t_hour = 88; t_min = 88; t_sec = 88;
 
   // Set coordinates for position
   if(pos == 0) {        // Top Position
@@ -558,9 +445,9 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
 
     // Print hours offset
     tft.setCursor((bw+bx)+10, (by+12));
-    sprintf(os, "%d%s", os_num, "HRS");
+    sprintf(os, "%d %s", os_num, "HRS");
     if(int(os_num) >=0) {
-      sprintf(os, "+%d%s", os_num, "HRS");
+      sprintf(os, "+%d %s", os_num, "HRS");
     }
     tft.println(os);
   }
@@ -595,14 +482,6 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
     tft.println(t_min_s);
   }
   x = (x+57);
-  
-  // Second Dots
-  //if(ref[0] == 0) {
-  //  tft.fillRect(x, (y-34), 15, box_h, bg_color);
-  //  tft.setCursor((x+1), y);
-  //  tft.println(":");
-  //}
-  //x = (x + 17);
 
   // AM/PM
   tft.setCursor((x+2), y);
@@ -627,40 +506,44 @@ void displayTFTTime(int tz_index, int pos, int *ref) {
     tft.println(t_sec_s);
   }
   x = (x+57);
-
-
-
+  
   ref[0] = t_hour; ref[1] = t_min; ref[2] = t_sec;
-
 }
 
+/*
+ * getLocalOffset()
+ * 
+ * Grab the offset for local timezone (index 0 in ts) and return hour value.
+ * ========================================================================= */
 int getLocalOffset() {
+  // Get timezone index
+  int tzi = ts[0].tz_index;
+  
   TimeChangeRule *tcr;
-  Timezone tz = tzs[0].tz;
+  Timezone tz = tzs[tzi].tz;
   time_t utc = now();
   time_t t = tz.toLocal(utc, &tcr);
   return (tcr->offset/60);
 }
 
 /*
- * displayTFTDate(int tz_index)
+ * displayTFTDate()
  * 
- * TODO: detect change & fillRect
- */
+ * Statically display date at top of screen
+ * ========================================================================= */
 void displayTFTDate(int tz_index) {
   int cntr_x;
   char m[4];
+  
   char buf[40];
   TimeChangeRule *tcr;
   Timezone tz = tzs[tz_index].tz;
   time_t utc = now();
   time_t d = tz.toLocal(utc, &tcr);
 
-  
-//  time_t d = getTzData(tz_index);
-
+  // Month
   strcpy(m, monthShortStr(month(d)));
-  sprintf(buf, "%s %s %.2d %d", "Saturday", m, day(d), year(d));
+  sprintf(buf, "%s %s %.2d %d", dayStr(weekday(d)), m, day(d), year(d));
 
   int16_t x1, y1;
   uint16_t w, h;
@@ -668,15 +551,63 @@ void displayTFTDate(int tz_index) {
   tft.setFont(&FreeSans12pt7b);
 
   tft.setTextColor(HX8357_WHITE);
+
+  // Get text bounds for centering. 
   tft.getTextBounds(buf, 0, 35, &x1, &y1, &w, &h);
-  //tft.fillRect(cntr_x, 0, w, h, HX8357_BLACK);
-  cntr_x = (480 - w) / 2;
+//   cntr_x = (480 - w) / 2;
   tft.setCursor(0, +h);
   
   tft.println(buf);
   tft.drawFastHLine(0, (h + 8), 480, HX8357_WHITE);
 }
 
+/*
+ * showRSSI();
+ * 
+ * Get the RSSI value from wifi and show in top right as status.
+ * ========================================================================= */
+void showRSSI() {
+  long rssi = WiFi.RSSI();
+  uint16_t bar_color = HX8357_WHITE;
+
+  // Draw "WiFi:"
+  tft.setFont(&FreeSans9pt7b);
+  tft.setTextColor(HX8357_WHITE);
+  tft.setCursor(410, 25);
+  tft.println("WiFi:");
+
+  // Set Color of bars
+  if(rssi >= -80 && rssi <= -69) {        // NOT GOOD
+    bar_color = HX8357_RED;
+  } else if(rssi >= -70 && rssi <= -66) { // Okay
+    bar_color = HX8357_YELLOW;
+  } else if(rssi >= -67 && rssi <= -29) { // VERY GOOD
+    bar_color = HX8357_GREEN;
+  } else if(rssi >= -30) {                // EXCELENT
+    bar_color = HX8357_GREEN;
+  }
+
+  // Overwrite bars with black for refresh
+  tft.drawFastHLine(460, 25, 5, HX8357_BLACK);
+  tft.drawFastHLine(458, 20, 9, HX8357_BLACK);
+  tft.drawFastHLine(456, 15, 13, HX8357_BLACK);
+  tft.drawFastHLine(454, 10, 17, HX8357_BLACK);
+
+
+  // Set bars
+  if(rssi >= -80) {
+    tft.drawFastHLine(460, 25, 5, bar_color);
+  }
+  if(rssi >= -70) {
+    tft.drawFastHLine(458, 20, 9, bar_color);
+  }
+  if(rssi >= -67) {
+    tft.drawFastHLine(456, 15, 13, bar_color);
+  }
+  if(rssi >= -30) {
+    tft.drawFastHLine(454, 10, 17, bar_color);
+  }
+}
 /*
  * syncNTPTime();
  * 
